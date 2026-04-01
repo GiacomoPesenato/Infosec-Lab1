@@ -1,0 +1,38 @@
+[
+	{
+		"number": 0,
+		"key": "80000000000000000001",
+		"in": "00000000000000000000000000000000",
+		"out": "2fc5efc75dac7c6a04bb"
+	},
+	{
+		"number": 1,
+		"key": "80000000000000000001",
+		"in": "ffffffffffffffffffffffffffffffff",
+		"out": "cb6724befd11f9cfdb2a"
+	},
+	{
+		"number": 2,
+		"key": "80000000000000000001",
+		"in": "d215d77af8f812041f8f77cbe369b7bf",
+		"out": "2c070b07794f8a797e1a"
+	},
+	{
+		"number": 3,
+		"key": "c25e1d7d43dd67c65a25",
+		"in": "750af05961e9f20809c1d73e9053b2e2",
+		"out": "3a9d78c4ed3b44939fe6"
+	},
+	{
+		"number": 4,
+		"key": "80000000000000000001",
+		"in": "ccace5e3c860482ef385ec4b8517fc12d272b2fb15466bb70a71fab387f020fa",
+		"out": "72edf3367dc32ab7167a"
+	},
+	{
+		"number": 5,
+		"key": "838abd34771062a03aae",
+		"in": "8bdbe12c5a312f8344aa3419039b9674fcc4359b15c786205d14ae9449afb001",
+		"out": "cc565b57ad197ca6d913"
+	}
+]
