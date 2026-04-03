@@ -2,7 +2,7 @@
 
 Task 1 Giacomo [x]
 Task 2 Konstantin[x]
-Task 3 Aliza[]
+Task 3 Aliza[x]
 Task 4 Giacomo[]
 Task 5 Konstantin[]
 Task 6 Giacomo[]

@@ -1,0 +1,10 @@
+# Python cache and byte-compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE/Editor metadata
+.idea/
+.vscode/
+.DS_Store
