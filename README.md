@@ -1,7 +1,7 @@
 # Infosec-Lab1
 
 Task 1 Giacomo [x]
-Task 2 Konstantin[]
+Task 2 Konstantin[x]
 Task 3 Aliza[]
 Task 4 Giacomo[]
 Task 5 Konstantin[]
