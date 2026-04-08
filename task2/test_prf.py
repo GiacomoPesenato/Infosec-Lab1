@@ -1,6 +1,7 @@
 import json
+import os
 
-from prf import GGM_PRF
+from task2.prf import GGM_PRF
 
 
 def test_prf(json_path: str):
@@ -26,4 +27,6 @@ def test_prf(json_path: str):
             print(f"  Got:      {result_hex}")
 
 
-test_prf("../lab1vectors/lab1task2.json")
+if __name__ == "__main__":
+    json_path = os.path.join(os.path.dirname(__file__), "..", "lab1vectors", "lab1task2.json")
+    test_prf(json_path)

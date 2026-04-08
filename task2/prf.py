@@ -1,4 +1,4 @@
-from task2.trivium import Trivium
+from task1.trivium import Trivium
 
 
 class GGM_PRF:

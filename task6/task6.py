@@ -26,6 +26,8 @@ import requests
 import time
 import sys
 
+from task5.cbc import cbc_decrypt, unpad_iso7816
+
 BLOCK_SIZE = 20
 BASE_URL = "https://interrato.dev/infosec/lab1"
 
@@ -59,14 +61,22 @@ def query_oracle(token_hex: str) -> bool:
         return r.status_code != 422
 
 
-def remove_padding(data: bytes) -> bytes:
-    """Remove ISO/IEC 7816-4 padding."""
-    i = len(data) - 1
-    while i >= 0 and data[i] == 0x00:
-        i -= 1
-    if i < 0 or data[i] != 0x80:
-        raise ValueError("Invalid ISO 7816-4 padding")
-    return data[:i]
+def local_oracle(token_hex: str, cbc_key: bytes) -> bool:
+    """
+    Local padding oracle using Task 5's CBC implementation.
+    Simulates the remote endpoint behavior for offline testing.
+    Returns True if padding is valid, False otherwise.
+
+    token_hex encodes a 2-block value: first block = IV (mask), second = ciphertext.
+    """
+    raw = bytes.fromhex(token_hex)
+    iv_block = raw[:BLOCK_SIZE]
+    ct_block  = raw[BLOCK_SIZE:]
+    try:
+        cbc_decrypt(cbc_key, iv_block, ct_block)
+        return True
+    except ValueError:
+        return False
 
 
 def attack_block(target_block: bytes, block_idx: int, num_ct_blocks: int):
@@ -140,7 +150,7 @@ def main():
 
     elapsed = time.time() - t0
     full_pt = b"".join(plaintext_blocks)
-    plaintext = remove_padding(full_pt)
+    plaintext = unpad_iso7816(full_pt, BLOCK_SIZE)
 
     print(f"\nPlaintext (hex): {plaintext.hex()}")
     try:

@@ -99,42 +99,31 @@ IMPLEMENTATION
 
 import os
 import json
-from task1.trivium import Trivium, bytes_to_bits
+from task2.prf import GGM_PRF
+from task3.luby_rackoff import luby_rackoff_encrypt, luby_rackoff_decrypt, xor_bytes
 
 
 HALF_BLOCK = 10  # bytes (ell/2)
 
 
 # =============================================================================
-# Supporting code: GGM PRF and Feistel cipher (Tasks 2-3, needed for oracles)
+# Supporting code: GGM PRF wrapper and generic Feistel (Tasks 2-3)
 # =============================================================================
 
 def ggm_prf(key: bytes, input_data: bytes) -> bytes:
     """
-    GGM tree PRF: Trivium as length-doubling PRG, all-zero IV.
-    Input bits are traversed MSB-first within each byte (the standard
-    convention for tree-based constructions, where the most significant
-    bit determines the first branch from the root).
+    GGM tree PRF: thin wrapper around Task 2's GGM_PRF.
+    Converts bytes input to the bitstring format expected by GGM_PRF.
+    Input bits are traversed MSB-first within each byte.
     """
-    input_bits = []
-    for byte in input_data:
-        for i in range(7, -1, -1):
-            input_bits.append((byte >> i) & 1)
-    zero_iv = bytes(10)
-    s = key
-    for bit in input_bits:
-        prg = Trivium(s, zero_iv)
-        output = prg.keystream_bytes(20)
-        s = output[10:] if bit else output[:10]
-    return s
-
-
-def xor_bytes(a: bytes, b: bytes) -> bytes:
-    return bytes(x ^ y for x, y in zip(a, b))
+    u = GGM_PRF.hex_to_bitstring(input_data.hex())
+    return GGM_PRF(key, u).result
 
 
 def feistel_encrypt(key: bytes, plaintext: bytes, rounds: int) -> bytes:
-    """r-round Feistel encryption. Key = k1||k2||...||kr (each 10 bytes)."""
+    """r-round Feistel encryption. Key = k1||k2||...||kr (each 10 bytes).
+    Uses ggm_prf from Task 2 as round function. Needed for 2- and 3-round
+    variants not covered by Task 3's fixed 4-round implementation."""
     left, right = plaintext[:HALF_BLOCK], plaintext[HALF_BLOCK:]
     for i in range(rounds):
         rk = key[i * HALF_BLOCK : (i + 1) * HALF_BLOCK]
@@ -248,8 +237,9 @@ if __name__ == "__main__":
             for tv in json.load(f):
                 key = bytes.fromhex(tv["key"])
                 msg = bytes.fromhex(tv["msg"])
-                ct = feistel_encrypt(key, msg, 4)
-                pt = feistel_decrypt(key, ct, 4)
+                # Use Task 3's luby_rackoff_encrypt/decrypt directly
+                ct = luby_rackoff_encrypt(key, msg)
+                pt = luby_rackoff_decrypt(key, ct)
                 enc_ok = ct.hex() == tv["ct"]
                 dec_ok = pt == msg
                 print(f"  Test {tv['number']}: Enc={'PASS' if enc_ok else 'FAIL'}"

@@ -1,4 +1,5 @@
 import json
+import os
 
 def bytes_to_bits(data: bytes) -> list[int]:
     """
@@ -101,7 +102,8 @@ class Trivium:
 # Blocco di esecuzione per i test
 if __name__ == "__main__":
     try:
-        with open("lab1vectors/lab1task1.json", "r") as f:
+        json_path = os.path.join(os.path.dirname(__file__), "..", "lab1vectors", "lab1task1.json")
+        with open(json_path, "r") as f:
             test_vectors = json.load(f)
             
         print("Esecuzione dei Test Vector per la Task 1...")
