@@ -1,27 +1,3 @@
-"""
-Task 6 — Padding Decryption Oracle Attack (Vaudenay, 2002)
-==========================================================
-
-Performs a padding oracle attack against a CBC-mode cipher with ISO/IEC 7816-4
-padding, using the remote vulnerable endpoint at interrato.dev.
-
-Oracle behavior (determined by probing):
-  - HTTP 403 = valid padding (decryption succeeded, access forbidden)
-  - HTTP 422 = invalid padding
-  - HTTP 429 = rate limited (retry)
-
-Cipher: 4-round Luby-Rackoff in CBC mode, block size = 20 bytes.
-Padding: ISO/IEC 7816-4 (0x80 byte followed by zero or more 0x00 bytes).
-
-Attack:
-  For each ciphertext block x_i, send crafted 2-block ciphertexts (mask || x_i)
-  to the oracle. Vary mask byte-by-byte from position 19 down to 0.
-  Set the suffix so positions after the target decrypt to 0x00, then brute-force
-  the target byte until the oracle reports valid padding (target = 0x80).
-  This reveals I_i[j] = mask[j] XOR 0x80, where I_i = D_k(x_i).
-  Finally: plaintext_i = I_i XOR x_{i-1}.
-"""
-
 import requests
 import time
 import sys
@@ -62,13 +38,7 @@ def query_oracle(token_hex: str) -> bool:
 
 
 def local_oracle(token_hex: str, cbc_key: bytes) -> bool:
-    """
-    Local padding oracle using Task 5's CBC implementation.
-    Simulates the remote endpoint behavior for offline testing.
-    Returns True if padding is valid, False otherwise.
-
-    token_hex encodes a 2-block value: first block = IV (mask), second = ciphertext.
-    """
+    """Local padding oracle using Task 5's CBC implementation (for offline testing)."""
     raw = bytes.fromhex(token_hex)
     iv_block = raw[:BLOCK_SIZE]
     ct_block  = raw[BLOCK_SIZE:]
@@ -101,7 +71,6 @@ def attack_block(target_block: bytes, block_idx: int, num_ct_blocks: int):
 
             if query_oracle(token_hex):
                 # Verify: flip preceding byte to reject false positives
-                # (accidental 0x80 at an earlier position)
                 if byte_pos > 0:
                     mask[byte_pos - 1] ^= 0xFF
                     if not query_oracle((bytes(mask) + target_block).hex()):

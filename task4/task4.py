@@ -1,129 +1,19 @@
-"""
-Task 4 — Break a 3-round Luby-Rackoff block cipher
-=====================================================
-
-OBJECTIVE:
-    Devise a distinguisher between a 3-round Feistel cipher F^(3) (using a
-    secure PRF as round function) and an ideal random permutation.
-    The distinguisher has access to both encryption and decryption oracles.
-
-DEVELOPMENT APPROACH (following the hint):
-    Step 1: Analyze the 2-round Feistel to build intuition (CPA only).
-    Step 2: Extend the analysis to 3 rounds (CPA + CCA).
-    Step 3: Implement and empirically verify.
-
-================================================================================
-CRYPTOGRAPHIC ANALYSIS
-================================================================================
-
---- Notation ---
-
-    A single Feistel round with key k maps:
-        (u0, u1) -> (u1, u0 XOR F(k, u1))
-    where F is the PRF (GGM construction).
-
---- 2-Round Feistel Distinguisher (warm-up, encryption oracle only) ---
-
-    Encrypt (L, R) through 2 rounds with keys k1, k2:
-        Round 1: (L, R)                       -> (R, L XOR F(k1, R))
-        Round 2: (R, L XOR F(k1, R))          -> (L XOR F(k1, R), R XOR F(k2, L XOR F(k1, R)))
-        Output:  c_L = L XOR F(k1, R),  c_R = R XOR F(k2, L XOR F(k1, R))
-
-    Now encrypt two plaintexts (L, R) and (L', R) sharing the same right half:
-        c_L  = L  XOR F(k1, R)
-        c_L' = L' XOR F(k1, R)
-        =>  c_L XOR c_L' = L XOR L'
-
-    This XOR relationship ALWAYS holds for F^(2). For a random permutation,
-    it occurs with probability 1/2^80 (negligible for 10-byte half-blocks).
-
-    Distinguisher: encrypt (L||R) and (L'||R), check c_L XOR c_L' == L XOR L'.
-
---- 3-Round Feistel Distinguisher (main result, both oracles needed) ---
-
-    The Luby-Rackoff theorem proves F^(3) is a secure PRP under chosen-
-    plaintext attack. However, it is NOT a strong PRP: an adversary with
-    access to BOTH encryption and decryption oracles can distinguish it.
-
-    Encryption of (L, R) through 3 rounds with keys k1, k2, k3:
-        Let A = L XOR F(k1, R)
-        Round 1: (L, R)    -> (R, A)
-        Round 2: (R, A)    -> (A, R XOR F(k2, A))
-        Round 3:           -> (R XOR F(k2, A),  A XOR F(k3, R XOR F(k2, A)))
-        Output:  c_L = R XOR F(k2, A),  c_R = A XOR F(k3, c_L)
-
-    For two plaintexts (L, R) and (L', R) with the same R:
-        A  = L  XOR F(k1, R)
-        A' = L' XOR F(k1, R)
-        Note: A XOR A' = L XOR L' = delta (known to the attacker)
-
-    ATTACK: construct modified ciphertexts c1* = (c1_L, c1_R XOR delta)
-    and c2* = (c2_L, c2_R XOR delta), then decrypt both.
-
-    Decrypting c1* = (c1_L, c1_R XOR delta):
-        Undo round 3:
-            (c1_R XOR delta) XOR F(k3, c1_L) = A XOR delta = A'
-            State: (A', c1_L) = (A', R XOR F(k2, A))
-
-        Undo round 2:
-            (R XOR F(k2, A)) XOR F(k2, A') = R XOR F(k2, A) XOR F(k2, A')
-            State: (R XOR F(k2, A) XOR F(k2, A'),  A')
-
-        Undo round 1:
-            Final right half = R XOR F(k2, A) XOR F(k2, A')
-
-    Decrypting c2* = (c2_L, c2_R XOR delta):
-        [Symmetric derivation — A and A' swap roles]
-            Final right half = R XOR F(k2, A') XOR F(k2, A)
-
-    Since XOR is commutative:
-        right(Dec(c1*)) = R XOR F(k2,A) XOR F(k2,A')
-                        = R XOR F(k2,A') XOR F(k2,A)
-                        = right(Dec(c2*))
-
-    The right halves are ALWAYS equal for F^(3). For a random permutation,
-    this occurs with probability 1/2^80 (negligible).
-
-    Total oracle queries: 4 (2 encryptions + 2 decryptions).
-    Distinguisher advantage: 1.
-
-================================================================================
-IMPLEMENTATION
-================================================================================
-
-    The distinguisher itself is oracle-agnostic (it treats enc/dec as black
-    boxes). To empirically verify it, we need a working 3-round Feistel,
-    which requires the GGM PRF (Task 2) and Feistel structure (Task 3) as
-    minimal supporting code. Trivium (Task 1) is imported from trivium.py.
-"""
-
 import os
 import json
 from task2.prf import GGM_PRF
 from task3.luby_rackoff import luby_rackoff_encrypt, luby_rackoff_decrypt, xor_bytes
 
 
-HALF_BLOCK = 10  # bytes (ell/2)
+HALF_BLOCK = 10  # bytes
 
-
-# =============================================================================
-# Supporting code: GGM PRF wrapper and generic Feistel (Tasks 2-3)
-# =============================================================================
 
 def ggm_prf(key: bytes, input_data: bytes) -> bytes:
-    """
-    GGM tree PRF: thin wrapper around Task 2's GGM_PRF.
-    Converts bytes input to the bitstring format expected by GGM_PRF.
-    Input bits are traversed MSB-first within each byte.
-    """
     u = GGM_PRF.hex_to_bitstring(input_data.hex())
     return GGM_PRF(key, u).result
 
 
 def feistel_encrypt(key: bytes, plaintext: bytes, rounds: int) -> bytes:
-    """r-round Feistel encryption. Key = k1||k2||...||kr (each 10 bytes).
-    Uses ggm_prf from Task 2 as round function. Needed for 2- and 3-round
-    variants not covered by Task 3's fixed 4-round implementation."""
+    """r-round Feistel encryption; needed for 2- and 3-round variants."""
     left, right = plaintext[:HALF_BLOCK], plaintext[HALF_BLOCK:]
     for i in range(rounds):
         rk = key[i * HALF_BLOCK : (i + 1) * HALF_BLOCK]
@@ -140,17 +30,9 @@ def feistel_decrypt(key: bytes, ciphertext: bytes, rounds: int) -> bytes:
     return left + right
 
 
-# =============================================================================
-# TASK 4 CORE: Distinguishers
-# =============================================================================
-
 def distinguisher_2round(enc_oracle) -> str:
-    """
-    2-round Feistel distinguisher (CPA only, warm-up).
-
-    Exploits: for plaintexts (L||R) and (L'||R), the 2-round Feistel always
-    produces ciphertexts where c_L XOR c_L' = L XOR L'.
-    """
+    """2-round Feistel distinguisher (CPA only).
+    For plaintexts (L||R) and (L'||R), F^(2) always satisfies c_L XOR c_L' = L XOR L'."""
     L = os.urandom(HALF_BLOCK)
     L_prime = os.urandom(HALF_BLOCK)
     R = os.urandom(HALF_BLOCK)
@@ -166,18 +48,7 @@ def distinguisher_2round(enc_oracle) -> str:
 
 
 def distinguisher_3round(enc_oracle, dec_oracle) -> str:
-    """
-    3-round Feistel distinguisher (CPA + CCA).
-
-    Algorithm:
-        1. Pick random L, L' (distinct) and R.
-        2. c1 = Enc(L||R),  c2 = Enc(L'||R).
-        3. delta = L XOR L'.
-        4. c1* = (c1_left || c1_right XOR delta).
-           c2* = (c2_left || c2_right XOR delta).
-        5. m1* = Dec(c1*),  m2* = Dec(c2*).
-        6. If right_half(m1*) == right_half(m2*) -> "feistel", else "random".
-    """
+    """3-round Feistel distinguisher (CPA + CCA, 4 queries, advantage 1)."""
     L = os.urandom(HALF_BLOCK)
     L_prime = os.urandom(HALF_BLOCK)
     R = os.urandom(HALF_BLOCK)
@@ -188,7 +59,7 @@ def distinguisher_3round(enc_oracle, dec_oracle) -> str:
     c1 = enc_oracle(L + R)
     c2 = enc_oracle(L_prime + R)
 
-    # Modify ciphertexts: XOR delta into the right half
+    # XOR delta into the right half of each ciphertext
     delta = xor_bytes(L, L_prime)
     c1_star = c1[:HALF_BLOCK] + xor_bytes(c1[HALF_BLOCK:], delta)
     c2_star = c2[:HALF_BLOCK] + xor_bytes(c2[HALF_BLOCK:], delta)
@@ -197,23 +68,16 @@ def distinguisher_3round(enc_oracle, dec_oracle) -> str:
     m1_star = dec_oracle(c1_star)
     m2_star = dec_oracle(c2_star)
 
-    # Check structural invariant: right halves must match for F^(3)
+    # Invariant: right halves always match for F^(3)
     if m1_star[HALF_BLOCK:] == m2_star[HALF_BLOCK:]:
         return "feistel"
     return "random"
 
 
-# =============================================================================
-# Empirical verification
-# =============================================================================
-
 if __name__ == "__main__":
 
     NUM_TRIALS = 3  # each trial is slow due to Trivium-based GGM PRF
 
-    # ------------------------------------------------------------------
-    # Verify supporting code against test vectors (sanity check)
-    # ------------------------------------------------------------------
     print("=" * 60)
     print("Sanity check: GGM PRF (Task 2 vectors)")
     print("=" * 60)
@@ -237,7 +101,6 @@ if __name__ == "__main__":
             for tv in json.load(f):
                 key = bytes.fromhex(tv["key"])
                 msg = bytes.fromhex(tv["msg"])
-                # Use Task 3's luby_rackoff_encrypt/decrypt directly
                 ct = luby_rackoff_encrypt(key, msg)
                 pt = luby_rackoff_decrypt(key, ct)
                 enc_ok = ct.hex() == tv["ct"]
@@ -247,9 +110,6 @@ if __name__ == "__main__":
     except FileNotFoundError:
         print("  lab1task3.json not found, skipping.")
 
-    # ------------------------------------------------------------------
-    # 2-round distinguisher (warm-up)
-    # ------------------------------------------------------------------
     print()
     print("=" * 60)
     print("2-Round Distinguisher (CPA only)")
@@ -267,9 +127,6 @@ if __name__ == "__main__":
     for i in range(NUM_TRIALS):
         print(f"    Trial {i+1}: {distinguisher_2round(enc_4r)}")
 
-    # ------------------------------------------------------------------
-    # 3-round distinguisher (MAIN RESULT)
-    # ------------------------------------------------------------------
     print()
     print("=" * 60)
     print("3-Round Distinguisher (CPA + CCA) — TASK 4 MAIN RESULT")
@@ -289,9 +146,6 @@ if __name__ == "__main__":
     for i in range(NUM_TRIALS):
         print(f"    Trial {i+1}: {distinguisher_3round(enc_4r, dec_4r)}")
 
-    # ------------------------------------------------------------------
-    # Summary
-    # ------------------------------------------------------------------
     print()
     print("=" * 60)
     print("CONCLUSION")

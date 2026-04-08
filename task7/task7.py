@@ -1,34 +1,8 @@
 """
 Task 7 — Padding Encryption Oracle Attack (Rizzo-Duong, 2010)
-=============================================================
 
-Turns the padding *decryption* oracle from Task 6 into an *encryption* oracle.
-
-The server at interrato.dev decrypts a CBC ciphertext and tells us whether the
-padding is valid (HTTP 403) or not (HTTP 422).  That single bit of feedback is
-enough to recover D_k(x) for any ciphertext block x — exactly the primitive
-Task 6 already exploits.  The Rizzo-Duong trick constructs a valid ciphertext
-*backwards*: pick a random last block, recover its D_k image, XOR with the
-desired plaintext block to get the preceding ciphertext block, and repeat.
-
-Algorithm (PDF slide 17):
-    EncryptionOracle(u in {0,1}^{n*ell}):
-        x_n  <-  random ell bits
-        for i = n down to 1:
-            x_{i-1}  :=  u_i  XOR  D_k^{oracle}(x_i)
-        return x_0 || x_1 || ... || x_n      # x_0 is the IV
-
-Correctness check (CBC decryption of the result):
-    u_i  =  D_k(x_i) XOR x_{i-1}
-         =  D_k(x_i) XOR (u_i XOR D_k(x_i))
-         =  u_i                                # QED
-
-Target plaintext
-    Task 6 recovered:  {"group":"SOSEMANUK","privileged":false,...}
-    We forge:          {"group":"SOSEMANUK","privileged":true,...}
-
-To run:
-    python -m task7.task7
+Turns the padding decryption oracle into an encryption oracle by constructing
+ciphertext backwards: pick random x_n, then for i = n..1 set x_{i-1} = u_i XOR D_k(x_i).
 """
 
 import os
@@ -41,17 +15,12 @@ from task5.cbc import pad_iso7816
 BLOCK_SIZE = 20
 BASE_URL = "https://interrato.dev/infosec/lab1"
 
-# ---------- oracle communication (same pattern as Task 6) ----------
-
 session = requests.Session()
 oracle_queries = 0
 
 
 def query_oracle(token_hex: str) -> bool:
-    """
-    Send a 2-block token (probe || target) to the server.
-    Returns True if padding is valid (HTTP != 422).  Retries on 429.
-    """
+    """Returns True if padding is valid (HTTP != 422). Retries on 429."""
     global oracle_queries
     while True:
         try:
@@ -66,26 +35,18 @@ def query_oracle(token_hex: str) -> bool:
         return r.status_code != 422
 
 
-# ---------- intermediate-value recovery (reused from Task 6) ----------
-
 def recover_intermediate(target_block: bytes, label: str) -> bytes:
-    """
-    Recover I = D_k(target_block) via the padding oracle, byte by byte.
-
-    Identical to Task 6's attack_block: for each byte position j (from 19
-    down to 0) craft a probe block so that the decryption of target_block
-    XOR probe has valid ISO 7816-4 padding (last byte = 0x80, suffix = 0x00).
-    """
+    """Recover I = D_k(target_block) via the padding oracle, byte by byte."""
     intermediate = bytearray(BLOCK_SIZE)
 
     for byte_pos in range(BLOCK_SIZE - 1, -1, -1):
         probe = bytearray(BLOCK_SIZE)
 
-        # Suffix: already-known bytes must decrypt to 0x00
+        # Suffix: already-known bytes decrypt to 0x00
         for k in range(byte_pos + 1, BLOCK_SIZE):
-            probe[k] = intermediate[k]          # I[k] XOR 0x00 = I[k]
+            probe[k] = intermediate[k]
 
-        # Prefix: non-special filler (avoids accidental 0x80)
+        # Prefix: fixed non-special value
         for k in range(byte_pos):
             probe[k] = 0x41
 
@@ -95,8 +56,7 @@ def recover_intermediate(target_block: bytes, label: str) -> bytes:
             token_hex = (bytes(probe) + target_block).hex()
 
             if query_oracle(token_hex):
-                # Verify: flip the preceding byte to reject false positives
-                # (an accidental 0x80 at an earlier position)
+                # Verify: flip preceding byte to reject false positives
                 if byte_pos > 0:
                     probe[byte_pos - 1] ^= 0xFF
                     if not query_oracle((bytes(probe) + target_block).hex()):
@@ -115,30 +75,18 @@ def recover_intermediate(target_block: bytes, label: str) -> bytes:
                 break
 
         if not found:
-            raise RuntimeError(
-                f"Failed at byte {byte_pos} ({label})"
-            )
+            raise RuntimeError(f"Failed at byte {byte_pos} ({label})")
 
     print()
     return bytes(intermediate)
 
-
-# ---------- encryption oracle (Rizzo-Duong construction) ----------
 
 def xor_bytes(a: bytes, b: bytes) -> bytes:
     return bytes(x ^ y for x, y in zip(a, b))
 
 
 def encryption_oracle(plaintext: bytes) -> bytes:
-    """
-    Encrypt an arbitrary plaintext under the server's unknown key,
-    using only the padding decryption oracle.
-
-    1. Apply ISO 7816-4 padding, split into n blocks u_1 .. u_n.
-    2. Pick random x_n.
-    3. For i = n down to 1:  x_{i-1} = u_i XOR D_k(x_i).
-    4. Return x_0 || x_1 || ... || x_n   (x_0 is the IV).
-    """
+    """Encrypt arbitrary plaintext using only the padding decryption oracle."""
     padded = pad_iso7816(plaintext, BLOCK_SIZE)
     n = len(padded) // BLOCK_SIZE
     u = [padded[i * BLOCK_SIZE : (i + 1) * BLOCK_SIZE] for i in range(n)]
@@ -160,20 +108,16 @@ def encryption_oracle(plaintext: bytes) -> bytes:
     return b"".join(x)
 
 
-# ---------- main ----------
-
 def main():
     print("=" * 64)
     print("Task 7 — Padding Encryption Oracle Attack  |  Group: SOSEMANUK")
     print(f"  Endpoint: {BASE_URL}")
     print("=" * 64)
 
-    # From Task 6 decryption
     original_json = (
         '{"group":"SOSEMANUK","privileged":false,'
         '"token-id":"20427f44eec58dce"}'
     )
-    # Forge: flip privileged to true
     forged_json = (
         '{"group":"SOSEMANUK","privileged":true,'
         '"token-id":"20427f44eec58dce"}'
@@ -200,7 +144,6 @@ def main():
     print(f"  {token_hex}")
     print(f"\nOracle queries: {oracle_queries}  |  Time: {elapsed:.0f}s")
 
-    # ---------- verify against the server ----------
     print(f"\n{'=' * 64}")
     print("Verifying forged token ...")
     while True:
