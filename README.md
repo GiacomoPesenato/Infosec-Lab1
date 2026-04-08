@@ -1,18 +1,5 @@
 # Infosec-Lab1
 
-| Task | Owner | Status |
-|------|-------|--------|
-| Task 1 | Giacomo | ✅ |
-| Task 2 | Konstantin | ✅ |
-| Task 3 | Aliza | ✅ |
-| Task 4 | Giacomo | ✅ |
-| Task 5 | Konstantin | ✅ |
-| Task 6 | Giacomo | ✅ |
-| Task 7 | Aliza | ✅ |
-| Task 8 | Giacomo | ✅ |
-
----
-
 ## How to run each task
 
 All commands must be run from the **project root** (the `lab1/` directory).
@@ -75,4 +62,4 @@ Forges a token with `"privileged":true` by turning the decryption oracle into an
 
 ### Task 8 — Countermeasures (discussion)
 
-Written discussion in `task8/padding_oracle.md`.
+Written discussion in `report.pdf`.
