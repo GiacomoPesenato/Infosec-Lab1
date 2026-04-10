@@ -1,10 +1,3 @@
-"""
-Task 7 — Padding Encryption Oracle Attack (Rizzo-Duong, 2010)
-
-Turns the padding decryption oracle into an encryption oracle by constructing
-ciphertext backwards: pick random x_n, then for i = n..1 set x_{i-1} = u_i XOR D_k(x_i).
-"""
-
 import os
 import sys
 import time

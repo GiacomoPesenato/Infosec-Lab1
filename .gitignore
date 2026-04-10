@@ -4,7 +4,7 @@
 *.pyc
 *.pyo
 *.pyd
-
+*.typ
 # IDE/Editor metadata
 .idea/
 .vscode/
